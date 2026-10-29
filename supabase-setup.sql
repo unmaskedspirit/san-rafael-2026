@@ -66,7 +66,7 @@ create or replace function public.validate_expense() returns trigger language pl
 declare k text; v text; total bigint := 0;
 begin
  if not public.is_trip_member(new.trip_id) then raise exception 'Not a trip member'; end if;
- if jsonb_object_length(new.shares)=0 then raise exception 'At least one family required'; end if;
+ if new.shares='{}'::jsonb then raise exception 'At least one family required'; end if;
  for k,v in select key,value from jsonb_each_text(new.shares) loop
    if v !~ '^[0-9]+$' or length(v)>12 then raise exception 'Invalid share'; end if;
    if not exists(select 1 from public.families where id=k::uuid and trip_id=new.trip_id) then raise exception 'Invalid family'; end if;
