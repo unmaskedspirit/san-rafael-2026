@@ -13,7 +13,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
 if(!window.supabase){document.getElementById('message').textContent='Unable to load Supabase library. Check your network or content blockers, then refresh.';throw Error('Supabase library did not load');} const {createClient}=window.supabase;
 const db=createClient('https://xlxnunbvpvlmwsqikcyk.supabase.co','sb_publishable__fds45aAU4jByFtRlE7R1w_hMfJWql2',{auth:{detectSessionInUrl:true}});
-const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n/100),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})),cents=n=>Math.round(Number(n)*100);
+const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n/100),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),cents=n=>Math.round(Number(n)*100);
 let trip=null,families=[],expenses=[],user=null;
 function msg(t){$('message').textContent=t||''} window.addEventListener('error',e=>msg('App error: '+e.message));window.addEventListener('unhandledrejection',e=>msg('Connection error: '+(e.reason?.message||String(e.reason))));function show(panel){for(const id of ['authPanel','joinPanel','app'])$(id).hidden=id!==panel}
 async function check(){const {data:{user:u}}=await db.auth.getUser();user=u;if(!user){trip=null;show('authPanel');return}const {data,error}=await db.from('trips').select('id').eq('name','San Rafael 2026').maybeSingle();if(error)msg(error.message);if(data){trip=data.id;show('app');await load()}else show('joinPanel')}
