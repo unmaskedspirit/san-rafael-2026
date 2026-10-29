@@ -32,8 +32,14 @@ try{await rpc('shared_add_expense',{p_description:$('description').value.trim(),
 $('expenses').onclick=async e=>{const b=e.target.closest('[data-delete]');if(!b||!confirm('Delete this expense for everyone?'))return;try{await rpc('shared_delete_expense',{p_expense_id:b.dataset.delete});await load()}catch(err){msg(err.message)}};
 function render(){const names=Object.fromEntries(families.map(f=>[f.id,f.name]));$('total').textContent=money(expenses.reduce((a,e)=>a+e.amount_cents,0));$('count').textContent=expenses.length;$('countFamilies').textContent=families.length;
 
-$('payer').innerHTML=families.map(f=>'<option value="'+f.id+'">'+esc(f.name)+'</option>').join('');
-$('participants').innerHTML=families.map(f=>'<label><input name="participant" type="checkbox" value="'+f.id+'"> '+esc(f.name)+'</label>').join('');renderCustom();
+const payerOptions=families.map(f=>'<option value="'+f.id+'">'+esc(f.name)+'</option>').join('');
+if($('payer').innerHTML!==payerOptions){const previous=$('payer').value;$('payer').innerHTML=payerOptions;if(families.some(f=>f.id===previous))$('payer').value=previous}
+const currentIds=[...$('participants').querySelectorAll('[name=participant]')].map(x=>x.value);
+if(currentIds.join('|')!==families.map(f=>f.id).join('|')){
+const selected=new Set([...$('participants').querySelectorAll('[name=participant]:checked')].map(x=>x.value));
+$('participants').innerHTML=families.map(f=>'<label><input name="participant" type="checkbox" value="'+f.id+'" '+(selected.has(f.id)?'checked':'')+'> '+esc(f.name)+'</label>').join('');
+renderCustom();
+}
 $('expenses').innerHTML=expenses.map(e=>'<div class="line"><div><b>'+esc(e.description)+'</b><div class="muted">Paid by '+esc(names[e.payer_id]||'Unknown')+' · '+Object.keys(e.shares).length+' families</div></div><div style="text-align:right"><b>'+money(e.amount_cents)+'</b><div><button class="secondary" style="padding:5px;margin-top:5px;font-size:12px" data-delete="'+e.id+'">Delete</button></div></div></div>').join('')||'<p class="muted">No expenses yet.</p>';
 const bal=Object.fromEntries(families.map(f=>[f.id,0]));for(const e of expenses){if(bal[e.payer_id]!==undefined)bal[e.payer_id]+=e.amount_cents;for(const [id,v] of Object.entries(e.shares))if(bal[id]!==undefined)bal[id]-=Number(v)}
 $('balances').innerHTML=families.map(f=>'<div class="line"><span>'+esc(f.name)+'</span><b>'+money(bal[f.id])+'</b></div>').join('')||'<p class="muted">No families yet.</p>';
