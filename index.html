@@ -1,33 +1,36 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>San Rafael 2026</title><style>
 *{box-sizing:border-box}body{margin:0;background:#f2f6f4;color:#173c34;font:16px system-ui,-apple-system,sans-serif}header{background:#173c34;color:white;padding:24px}main{max-width:760px;margin:auto;padding:16px}.card{background:white;border-radius:15px;padding:19px;margin:15px 0;box-shadow:0 3px 15px #16392e0b}h1{margin:0;font-size:28px}h2{font-size:20px;margin:0 0 12px}.muted{color:#607b72;font-size:13px}.row{display:flex;gap:12px}.row>*{flex:1;min-width:0}label{display:block;margin:12px 0 5px;font-size:13px;font-weight:650}input,select,button{width:100%;padding:11px;border:1px solid #bfd1c8;border-radius:9px;font:inherit}button{background:#226757;color:white;border:0;font-weight:650;cursor:pointer;margin-top:12px}button:disabled{opacity:.6}.secondary{background:#e8f0eb;color:#22584b}.line{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #e7eeea;padding:12px 0}.line:last-child{border:0}.checks{display:flex;gap:12px;flex-wrap:wrap}.checks label{font-weight:400;margin:3px 0}input[type=checkbox]{width:auto}.stat{background:#e8f2ec;padding:13px;border-radius:10px;flex:1}.stat strong{display:block;font-size:23px}#message{padding:10px;background:#fff4d9;border-radius:9px;margin:10px 0}#message:empty{display:none}[hidden]{display:none!important}</style></head>
-<body><header><div style="max-width:760px;margin:auto"><h1>San Rafael 2026</h1><div style="opacity:.8">Shared weekend expenses · by family</div></div></header><main><div id="message" role="status" aria-live="polite">Loading sign-in…</div>
-<section id="authPanel" class="card"><h2>Sign in</h2><p class="muted">Enter your email to receive a secure sign-in link. No password needed.</p><form id="loginForm"><label>Email</label><input id="email" type="email" required placeholder="you@example.com"><button>Send sign-in link</button></form></section>
-<section id="joinPanel" class="card" hidden><h2>Join the trip</h2><p class="muted">Enter the private access code shared by the organizer.</p><form id="joinForm"><label>Trip access code</label><input id="code" type="password" required autocomplete="off"><button>Join San Rafael 2026</button></form><button id="signoutJoin" class="secondary">Sign out</button></section>
+<body><header><div style="max-width:760px;margin:auto"><h1>San Rafael 2026</h1><div style="opacity:.8">Shared weekend expenses · by family</div></div></header><main><div id="message" role="status" aria-live="polite">Loading trip…</div>
+<section id="joinPanel" class="card"><h2>Open private trip</h2><p class="muted">Open the private link from your organizer, or paste the private trip code below. No sign-in needed.</p><form id="joinForm"><label>Private trip code</label><input id="code" type="password" required autocomplete="off"><button>Open trip</button></form></section>
 <div id="app" hidden>
 <section class="card"><div class="row"><div class="stat"><span class="muted">Total spent</span><strong id="total">$0</strong></div><div class="stat"><span class="muted">Expenses</span><strong id="count">0</strong></div><div class="stat"><span class="muted">Families</span><strong id="countFamilies">0</strong></div></div><button id="refresh" class="secondary">Refresh expenses</button></section>
 <section class="card"><h2>Families</h2><div id="families"></div><form id="familyForm" class="row"><input id="familyName" placeholder="Family name" required maxlength="60"><button style="flex:0 0 115px;margin:0">Add family</button></form></section>
 <section class="card"><h2>Add expense</h2><form id="expenseForm"><label>Description</label><input id="description" required maxlength="120" placeholder="Dinner, groceries, rental…"><div class="row"><div><label>Amount ($)</label><input id="amount" type="number" step=".01" min=".01" required></div><div><label>Paid by</label><select id="payer" required></select></div></div><label>Split among families</label><div class="checks" id="participants"></div><label>Split type</label><select id="splitType"><option value="equal">Equal</option><option value="custom">Custom amounts</option></select><div id="customFields" hidden></div><button>Add expense</button></form></section>
 <section class="card"><h2>Expenses</h2><div id="expenses"></div></section>
 <section class="card"><h2>Balances</h2><div id="balances"></div><h2 style="margin-top:20px">Settle up</h2><div id="settlements"></div></section>
-<button id="signout" class="secondary">Sign out</button></div></main>
+<button id="share" class="secondary">Copy private sharing link</button><button id="signout" class="secondary">Leave trip on this device</button></div></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script><script>
-if(!window.supabase){document.getElementById('message').textContent='Unable to load Supabase library. Check your network or content blockers, then refresh.';throw Error('Supabase library did not load');} const {createClient}=window.supabase;
-const db=createClient('https://xlxnunbvpvlmwsqikcyk.supabase.co','sb_publishable__fds45aAU4jByFtRlE7R1w_hMfJWql2',{auth:{detectSessionInUrl:true,persistSession:true,autoRefreshToken:true}});
-const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n/100),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),cents=n=>Math.round(Number(n)*100);
-let trip=null,families=[],expenses=[],user=null;
-function msg(t){$('message').textContent=t||''} window.addEventListener('error',e=>msg('App error: '+e.message));window.addEventListener('unhandledrejection',e=>msg('Connection error: '+(e.reason?.message||String(e.reason))));function show(panel){for(const id of ['authPanel','joinPanel','app'])$(id).hidden=id!==panel}
-async function check(){const {data:{session},error:sessionError}=await db.auth.getSession();if(sessionError)msg('Session error: '+sessionError.message);user=session?.user||null;if(!user){trip=null;show('authPanel');msg('Not signed in. If you just used an email link, request a fresh link and report any error shown here.');return}msg('Signed in as '+user.email);const {data,error}=await db.from('trips').select('id').eq('name','San Rafael 2026').maybeSingle();if(error)msg(error.message);if(data){trip=data.id;show('app');await load()}else show('joinPanel')}
-$('loginForm').onsubmit=async e=>{e.preventDefault();msg('Sending sign-in link…');try{const {error}=await db.auth.signInWithOtp({email:$('email').value.trim(),options:{emailRedirectTo:location.origin+location.pathname}});msg(error?'Sign-in failed: '+error.message:'Check your email for the sign-in link. Return to this page after signing in.')}catch(err){msg('Connection failed: '+err.message)}};
-$('joinForm').onsubmit=async e=>{e.preventDefault();const {error}=await db.rpc('join_san_rafael',{code:$('code').value});if(error)msg(error.message);else{msg('Welcome to the trip!');await check()}};
-async function signout(){await db.auth.signOut();trip=null;msg('Signed out');show('authPanel')}$('signout').onclick=signout;$('signoutJoin').onclick=signout;
-async function load(){if(!trip)return;const [f,x]=await Promise.all([db.from('families').select('*').eq('trip_id',trip).order('name'),db.from('expenses').select('*').eq('trip_id',trip).order('created_at',{ascending:false})]);if(f.error||x.error){msg(f.error?.message||x.error?.message);return}families=f.data;expenses=x.data;render()}
+if(!window.supabase){document.getElementById('message').textContent='Could not load app library';throw Error('Library failed')}
+const db=window.supabase.createClient('https://xlxnunbvpvlmwsqikcyk.supabase.co','sb_publishable__fds45aAU4jByFtRlE7R1w_hMfJWql2',{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+const $=id=>document.getElementById(id),money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n/100),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),cents=n=>Math.round(Number(n)*100);
+let secret='',families=[],expenses=[];
+function msg(t){$('message').textContent=t||''}
+window.addEventListener('error',e=>msg('App error: '+e.message));
+window.addEventListener('unhandledrejection',e=>msg('Error: '+(e.reason?.message||String(e.reason))));
+function showApp(yes){$('app').hidden=!yes;$('joinPanel').hidden=yes}
+async function rpc(name,params={}){const {data,error}=await db.rpc(name,{p_secret:secret,...params});if(error)throw Error(error.message);return data}
+async function load(){if(!secret)return;try{const d=await rpc('shared_trip_data');families=d.families||[];expenses=d.expenses||[];showApp(true);render();msg('Trip expenses are shared with everyone who has the private link.')}catch(e){showApp(false);msg('Unable to open trip: '+e.message)}}
+async function join(code){secret=code.trim();if(!secret)return;msg('Opening trip…');await load();if(!$('app').hidden){sessionStorage.setItem('sanrafael_secret',secret);history.replaceState(null,'',location.pathname+location.search+'#key='+encodeURIComponent(secret))}}
+$('joinForm').onsubmit=e=>{e.preventDefault();join($('code').value)};
 $('refresh').onclick=load;
-$('familyForm').onsubmit=async e=>{e.preventDefault();const name=$('familyName').value.trim();if(!name)return;const {error}=await db.from('families').insert({trip_id:trip,name});if(error)msg(error.message);else{$('familyName').value='';msg('Family added');await load()}};
+$('share').onclick=async()=>{const link=location.origin+location.pathname+'#key='+encodeURIComponent(secret);try{await navigator.clipboard.writeText(link);msg('Private sharing link copied. Send it only to your friends.')}catch(e){msg('Copy this private link from your browser address bar.')}};
+$('signout').onclick=()=>{secret='';sessionStorage.removeItem('sanrafael_secret');history.replaceState(null,'',location.pathname+location.search);showApp(false);msg('Left trip on this device.')};
+$('familyForm').onsubmit=async e=>{e.preventDefault();try{await rpc('shared_add_family',{p_name:$('familyName').value.trim()});$('familyName').value='';await load()}catch(err){msg(err.message)}};
 function renderCustom(){const ids=[...document.querySelectorAll('[name=participant]:checked')].map(x=>x.value);$('customFields').hidden=$('splitType').value!=='custom';$('customFields').innerHTML=ids.map(id=>'<label>'+esc(families.find(f=>f.id===id)?.name||'Family')+' ($)</label><input class="custom" data-id="'+id+'" type="number" step=".01" min="0" value="0">').join('')}
 $('participants').onchange=renderCustom;$('splitType').onchange=renderCustom;
 $('expenseForm').onsubmit=async e=>{e.preventDefault();const amount=cents($('amount').value),ids=[...document.querySelectorAll('[name=participant]:checked')].map(x=>x.value);if(!Number.isSafeInteger(amount)||amount<=0||!ids.length)return msg('Select at least one family and a valid amount');let shares;if($('splitType').value==='equal'){const base=Math.floor(amount/ids.length),rem=amount%ids.length;shares=Object.fromEntries(ids.map((id,i)=>[id,base+(i<rem?1:0)]))}else{shares=Object.fromEntries([...document.querySelectorAll('.custom')].map(x=>[x.dataset.id,cents(x.value)]));if(Object.values(shares).some(v=>!Number.isSafeInteger(v)||v<0)||Object.values(shares).reduce((a,b)=>a+b,0)!==amount)return msg('Custom amounts must add up to '+money(amount))}
-const {error}=await db.from('expenses').insert({trip_id:trip,description:$('description').value.trim(),amount_cents:amount,payer_id:$('payer').value,shares});if(error)msg(error.message);else{$('expenseForm').reset();msg('Expense added');await load()}};
-$('expenses').onclick=async e=>{const b=e.target.closest('[data-delete]');if(!b||!confirm('Delete this expense for everyone?'))return;const {error}=await db.from('expenses').delete().eq('id',b.dataset.delete).eq('trip_id',trip);if(error)msg(error.message);else await load()};
+try{await rpc('shared_add_expense',{p_description:$('description').value.trim(),p_amount_cents:amount,p_payer_id:$('payer').value,p_shares:shares});$('expenseForm').reset();await load()}catch(err){msg(err.message)}};
+$('expenses').onclick=async e=>{const b=e.target.closest('[data-delete]');if(!b||!confirm('Delete this expense for everyone?'))return;try{await rpc('shared_delete_expense',{p_expense_id:b.dataset.delete});await load()}catch(err){msg(err.message)}};
 function render(){const names=Object.fromEntries(families.map(f=>[f.id,f.name]));$('total').textContent=money(expenses.reduce((a,e)=>a+e.amount_cents,0));$('count').textContent=expenses.length;$('countFamilies').textContent=families.length;
 $('families').innerHTML=families.map(f=>'<div class="line">'+esc(f.name)+'</div>').join('')||'<p class="muted">Add your first family.</p>';
 $('payer').innerHTML=families.map(f=>'<option value="'+f.id+'">'+esc(f.name)+'</option>').join('');
@@ -36,23 +39,9 @@ $('expenses').innerHTML=expenses.map(e=>'<div class="line"><div><b>'+esc(e.descr
 const bal=Object.fromEntries(families.map(f=>[f.id,0]));for(const e of expenses){if(bal[e.payer_id]!==undefined)bal[e.payer_id]+=e.amount_cents;for(const [id,v] of Object.entries(e.shares))if(bal[id]!==undefined)bal[id]-=Number(v)}
 $('balances').innerHTML=families.map(f=>'<div class="line"><span>'+esc(f.name)+'</span><b>'+money(bal[f.id])+'</b></div>').join('')||'<p class="muted">No families yet.</p>';
 const debt=Object.entries(bal).filter(x=>x[1]<0).map(([id,v])=>({id,v:-v})),credit=Object.entries(bal).filter(x=>x[1]>0).map(([id,v])=>({id,v}));let i=0,j=0,out=[];while(i<debt.length&&j<credit.length){const v=Math.min(debt[i].v,credit[j].v);if(v)out.push('<div class="line">'+esc(names[debt[i].id])+' pays '+esc(names[credit[j].id])+' <b>'+money(v)+'</b></div>');debt[i].v-=v;credit[j].v-=v;if(!debt[i].v)i++;if(!credit[j].v)j++}$('settlements').innerHTML=out.join('')||'<p class="muted">All settled!</p>'}
-db.auth.onAuthStateChange((event)=>{if(event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='INITIAL_SESSION')setTimeout(()=>check().catch(e=>msg('Session check failed: '+e.message)),0)});
-(async()=>{try{
-const hadLink=location.hash.includes('access_token=');
-const init=await db.auth.initialize();
-if(init.error)msg('Sign-in redirect error: '+init.error.message);
-let {data:{session},error}=await db.auth.getSession();
-if(error)msg('Session read error: '+error.message);
-if(!session&&hadLink){
-const params=new URLSearchParams(location.hash.slice(1));
-const access_token=params.get('access_token'),refresh_token=params.get('refresh_token');
-if(access_token&&refresh_token){
-const result=await db.auth.setSession({access_token,refresh_token});
-if(result.error)msg('Link verification failed: '+result.error.message);
-else{session=result.data.session;history.replaceState(null,'',location.pathname+location.search)}
-}}
-if(!session){show('authPanel');if(hadLink)msg('Sign-in link could not establish a session. Please request a new email link.');else msg('Enter your email to sign in.');}
-else await check();
-}catch(e){show('authPanel');msg('Sign-in setup error: '+e.message)}
-})();setInterval(()=>{if(trip&&document.visibilityState==='visible')load()},15000);
+
+const fromLink=new URLSearchParams(location.hash.slice(1)).get('key');
+const saved=sessionStorage.getItem('sanrafael_secret');
+if(fromLink||saved)join(fromLink||saved);else{showApp(false);msg('Open the private trip link to get started.')}
+setInterval(()=>{if(secret&&!$('app').hidden&&document.visibilityState==='visible')load()},15000);
 </script></body></html>
