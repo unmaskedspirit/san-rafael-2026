@@ -16,7 +16,7 @@ const db=createClient('https://xlxnunbvpvlmwsqikcyk.supabase.co','sb_publishable
 const $=id=>document.getElementById(id), money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n/100),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),cents=n=>Math.round(Number(n)*100);
 let trip=null,families=[],expenses=[],user=null;
 function msg(t){$('message').textContent=t||''} window.addEventListener('error',e=>msg('App error: '+e.message));window.addEventListener('unhandledrejection',e=>msg('Connection error: '+(e.reason?.message||String(e.reason))));function show(panel){for(const id of ['authPanel','joinPanel','app'])$(id).hidden=id!==panel}
-async function check(){const {data:{session},error:sessionError}=await db.auth.getSession();if(sessionError)msg('Session error: '+sessionError.message);user=session?.user||null;if(!user){trip=null;show('authPanel');return}const {data,error}=await db.from('trips').select('id').eq('name','San Rafael 2026').maybeSingle();if(error)msg(error.message);if(data){trip=data.id;show('app');await load()}else show('joinPanel')}
+async function check(){const {data:{session},error:sessionError}=await db.auth.getSession();if(sessionError)msg('Session error: '+sessionError.message);user=session?.user||null;if(!user){trip=null;show('authPanel');msg('Not signed in. If you just used an email link, request a fresh link and report any error shown here.');return}msg('Signed in as '+user.email);const {data,error}=await db.from('trips').select('id').eq('name','San Rafael 2026').maybeSingle();if(error)msg(error.message);if(data){trip=data.id;show('app');await load()}else show('joinPanel')}
 $('loginForm').onsubmit=async e=>{e.preventDefault();msg('Sending sign-in link…');try{const {error}=await db.auth.signInWithOtp({email:$('email').value.trim(),options:{emailRedirectTo:location.origin+location.pathname}});msg(error?'Sign-in failed: '+error.message:'Check your email for the sign-in link. Return to this page after signing in.')}catch(err){msg('Connection failed: '+err.message)}};
 $('joinForm').onsubmit=async e=>{e.preventDefault();const {error}=await db.rpc('join_san_rafael',{code:$('code').value});if(error)msg(error.message);else{msg('Welcome to the trip!');await check()}};
 async function signout(){await db.auth.signOut();trip=null;msg('Signed out');show('authPanel')}$('signout').onclick=signout;$('signoutJoin').onclick=signout;
@@ -36,5 +36,23 @@ $('expenses').innerHTML=expenses.map(e=>'<div class="line"><div><b>'+esc(e.descr
 const bal=Object.fromEntries(families.map(f=>[f.id,0]));for(const e of expenses){if(bal[e.payer_id]!==undefined)bal[e.payer_id]+=e.amount_cents;for(const [id,v] of Object.entries(e.shares))if(bal[id]!==undefined)bal[id]-=Number(v)}
 $('balances').innerHTML=families.map(f=>'<div class="line"><span>'+esc(f.name)+'</span><b>'+money(bal[f.id])+'</b></div>').join('')||'<p class="muted">No families yet.</p>';
 const debt=Object.entries(bal).filter(x=>x[1]<0).map(([id,v])=>({id,v:-v})),credit=Object.entries(bal).filter(x=>x[1]>0).map(([id,v])=>({id,v}));let i=0,j=0,out=[];while(i<debt.length&&j<credit.length){const v=Math.min(debt[i].v,credit[j].v);if(v)out.push('<div class="line">'+esc(names[debt[i].id])+' pays '+esc(names[credit[j].id])+' <b>'+money(v)+'</b></div>');debt[i].v-=v;credit[j].v-=v;if(!debt[i].v)i++;if(!credit[j].v)j++}$('settlements').innerHTML=out.join('')||'<p class="muted">All settled!</p>'}
-db.auth.onAuthStateChange((event)=>{if(event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='INITIAL_SESSION')setTimeout(()=>check().catch(e=>msg('Session check failed: '+e.message)),0)});db.auth.initialize().then(()=>check()).catch(e=>msg('Initialization error: '+e.message));setInterval(()=>{if(trip&&document.visibilityState==='visible')load()},15000);
+db.auth.onAuthStateChange((event)=>{if(event==='SIGNED_IN'||event==='SIGNED_OUT'||event==='INITIAL_SESSION')setTimeout(()=>check().catch(e=>msg('Session check failed: '+e.message)),0)});
+(async()=>{try{
+const hadLink=location.hash.includes('access_token=');
+const init=await db.auth.initialize();
+if(init.error)msg('Sign-in redirect error: '+init.error.message);
+let {data:{session},error}=await db.auth.getSession();
+if(error)msg('Session read error: '+error.message);
+if(!session&&hadLink){
+const params=new URLSearchParams(location.hash.slice(1));
+const access_token=params.get('access_token'),refresh_token=params.get('refresh_token');
+if(access_token&&refresh_token){
+const result=await db.auth.setSession({access_token,refresh_token});
+if(result.error)msg('Link verification failed: '+result.error.message);
+else{session=result.data.session;history.replaceState(null,'',location.pathname+location.search)}
+}}
+if(!session){show('authPanel');if(hadLink)msg('Sign-in link could not establish a session. Please request a new email link.');else msg('Enter your email to sign in.');}
+else await check();
+}catch(e){show('authPanel');msg('Sign-in setup error: '+e.message)}
+})();setInterval(()=>{if(trip&&document.visibilityState==='visible')load()},15000);
 </script></body></html>
